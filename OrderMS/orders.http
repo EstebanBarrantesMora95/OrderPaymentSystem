@@ -1,0 +1,68 @@
+### Crear orden
+POST http://localhost:8081/api/orders
+Content-Type: application/json
+
+{
+  "customerName": "Esteban",
+  "product": "Laptop Lenovo",
+  "quantity": 1,
+  "total": 750.50
+}
+
+### Obtener todas las órdenes
+GET http://localhost:8081/api/orders
+
+### Obtener orden por ID
+GET http://localhost:8081/api/orders/1
+
+### Orden inexistente
+GET http://localhost:8081/api/orders/999999
+
+### Orden inválida
+POST http://localhost:8081/api/orders
+Content-Type: application/json
+
+{
+  "customerName": "",
+  "product": "",
+  "quantity": 0,
+  "total": -10
+}
+
+### Crear orden con tarjeta
+POST http://localhost:8081/api/orders
+Content-Type: application/json
+
+{
+  "customerName": "Esteban",
+  "product": "Laptop Lenovo",
+  "quantity": 1,
+  "total": 750.50,
+  "card": {
+    "cardNumber": "4111111111111111",
+    "cardHolder": "Test User",
+    "expirationDate": "12/30",
+    "cvv": "123"
+  }
+}
+
+### Crear orden con pago rechazado
+POST http://localhost:8081/api/orders
+Content-Type: application/json
+
+{
+  "customerName": "Esteban",
+  "product": "Monitor Gaming",
+  "quantity": 1,
+  "total": 350.00,
+  "card": {
+    "cardNumber": "4000000000000002",
+    "cardHolder": "Test User",
+    "expirationDate": "12/30",
+    "cvv": "123"
+  }
+}
+
+
+###
+GET http://localhost:8081/api/orders/41

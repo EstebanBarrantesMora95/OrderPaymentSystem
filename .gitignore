@@ -1,0 +1,21 @@
+# IntelliJ
+.idea/
+*.iml
+
+# Java / Maven
+**/target/
+**/.mvn/wrapper/maven-wrapper.jar
+
+# Node / React
+frontend/node_modules/
+frontend/dist/
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Sensitive RSA private key
+PaymentMS/src/main/resources/keys/private_key.pem
