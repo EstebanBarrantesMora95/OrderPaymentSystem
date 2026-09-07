@@ -276,6 +276,294 @@ payment-processed
 Esto permite desacoplar el procesamiento de pedidos del procesamiento de pagos mediante comunicación asíncrona.
 
 
+## Script de Validación
+
+Esta sección permite validar el flujo completo del sistema desde la creación del pedido hasta la actualización asíncrona del estado mediante Kafka.
+
+### 1. Levantar el sistema
+
+Desde la raíz del proyecto:
+
+```bash
+docker compose up -d --build
+```
+
+Verificar que todos los servicios estén activos:
+
+```bash
+docker compose ps
+```
+
+Deberían aparecer los siguientes contenedores:
+
+```text
+kafka
+postgres-orders
+order-ms
+payment-ms
+frontend
+```
+
+---
+
+### 2. Crear un pedido
+
+#### Opción A: Postman
+
+Método:
+
+```text
+POST
+```
+
+URL:
+
+```text
+http://localhost:8081/api/orders
+```
+
+Body:
+
+```json
+{
+  "customerName": "Esteban",
+  "product": "Laptop Lenovo",
+  "quantity": 1,
+  "total": 750.50,
+  "card": {
+    "cardNumber": "4111111111111111",
+    "cardHolder": "Test User",
+    "expirationDate": "12/30",
+    "cvv": "123"
+  }
+}
+```
+
+La respuesta inicial puede mostrar:
+
+```json
+{
+  "id": 1,
+  "customerName": "Esteban",
+  "product": "Laptop Lenovo",
+  "quantity": 1,
+  "total": 750.50,
+  "status": "PENDING"
+}
+```
+
+El estado `PENDING` es esperado, ya que el procesamiento del pago se realiza de forma asíncrona mediante Kafka.
+
+---
+
+### 3. Consultar el estado inicial
+
+Utilizar el `id` devuelto en la creación del pedido.
+
+Ejemplo:
+
+```text
+GET http://localhost:8081/api/orders/1
+```
+
+La respuesta inicial puede mostrar:
+
+```json
+{
+  "id": 1,
+  "status": "PENDING"
+}
+```
+
+---
+
+### 4. Verificar el flujo de Kafka en PaymentMS
+
+Ejecutar:
+
+```bash
+docker compose logs payment-ms
+```
+
+Se debería observar un mensaje indicando que `PaymentMS` recibió el evento del tópico:
+
+```text
+order-placed
+```
+
+También debería aparecer que los datos de la tarjeta fueron descifrados correctamente y que se generó el resultado del pago.
+
+---
+
+### 5. Verificar el resultado enviado por PaymentMS
+
+En los logs de `PaymentMS` debería aparecer un mensaje similar a:
+
+```text
+Payment event sent to Kafka
+PaymentProcessedEvent{orderId=1, approved=true, message='Payment approved'}
+```
+
+Esto confirma que `PaymentMS` publicó el evento en el tópico:
+
+```text
+payment-processed
+```
+
+---
+
+### 6. Verificar la actualización en OrderMS
+
+Ejecutar:
+
+```bash
+docker compose logs order-ms
+```
+
+Se debería observar un mensaje similar a:
+
+```text
+Payment result received for order: 1
+Order 1 updated to: PAID
+```
+
+Esto confirma que `OrderMS` consumió el evento `payment-processed` y actualizó el estado del pedido en PostgreSQL.
+
+---
+
+### 7. Consultar el estado final
+
+Ejecutar nuevamente:
+
+```text
+GET http://localhost:8081/api/orders/1
+```
+
+Para un pago aprobado, la respuesta final debería mostrar:
+
+```json
+{
+  "id": 1,
+  "status": "PAID"
+}
+```
+
+---
+
+## Prueba de Pago Rechazado
+
+Para probar el flujo de error, utilizar la siguiente tarjeta:
+
+```text
+4000000000000002
+```
+
+Ejemplo:
+
+```json
+{
+  "customerName": "Esteban",
+  "product": "Monitor Gaming",
+  "quantity": 1,
+  "total": 350.00,
+  "card": {
+    "cardNumber": "4000000000000002",
+    "cardHolder": "Test User",
+    "expirationDate": "12/30",
+    "cvv": "123"
+  }
+}
+```
+
+El flujo esperado es:
+
+```text
+PENDING
+   ↓
+PAYMENT_FAILED
+```
+
+Luego consultar:
+
+```text
+GET http://localhost:8081/api/orders/{id}
+```
+
+y verificar:
+
+```json
+{
+  "status": "PAYMENT_FAILED"
+}
+```
+
+---
+
+## Prueba mediante cURL
+
+### Crear pedido aprobado
+
+```bash
+curl -X POST http://localhost:8081/api/orders \
+  -H "Content-Type: application/json" \
+  -d '{
+    "customerName": "Esteban",
+    "product": "Laptop Lenovo",
+    "quantity": 1,
+    "total": 750.50,
+    "card": {
+      "cardNumber": "4111111111111111",
+      "cardHolder": "Test User",
+      "expirationDate": "12/30",
+      "cvv": "123"
+    }
+  }'
+```
+
+### Consultar pedido
+
+```bash
+curl http://localhost:8081/api/orders/1
+```
+
+### Ver logs de PaymentMS
+
+```bash
+docker compose logs payment-ms
+```
+
+### Ver logs de OrderMS
+
+```bash
+docker compose logs order-ms
+```
+
+---
+
+## Frontend
+
+La aplicación web está disponible en:
+
+```text
+http://localhost:3000
+```
+
+Desde el frontend es posible:
+
+- Crear pedidos.
+- Consultar el historial completo.
+- Buscar pedidos por ID, cliente o producto.
+- Filtrar por estado.
+- Ordenar los resultados.
+- Navegar mediante paginación.
+- Consultar el detalle de cada orden.
+- Visualizar automáticamente el cambio de estado de `PENDING` a `PAID` o `PAYMENT_FAILED`.
+
+### Dato importante
+
+Una vez realizada la prueba de pago, se implementó un mecanismo de polling que actualiza automáticamente el estado del pedido en la interfaz, permitiendo visualizar el cambio de `PENDING` a `PAID` o `PAYMENT_FAILED` sin necesidad de recargar la página manualmente ni presionar `F5`.
+
+
 ## Autor
 
 Esteban Barrantes
